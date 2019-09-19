@@ -32,7 +32,7 @@ namespace xf::cmd
         mt_none    = 0x00,
         v_required = 0x01,          // value 是必需的
         k_required = 0x02,          // key 是必需的
-        is_unique  = 0x04           // key 是唯一的
+        is_unique  = 0x04           // key 是独占的
     };
 
     enum state_t {
@@ -181,6 +181,8 @@ namespace xf::cmd
         map_t<unsigned int, pair_t<set_t<string_t>, option_t>> opt_map;
 
     public:
+
+        Parser() = default;
 
         Parser(const list_t<pair_t<set_t<string_t>, option_t>>& options)
         {
@@ -366,6 +368,24 @@ namespace xf::cmd
             return 0 == a.compare(0, b.size(), b);
         }
 
+        static bool _check_type(const string_t& value, const option_t& opt)
+        {
+            switch (opt.vt)
+            {
+            case value_t::vt_string:
+                return (!value.empty());
+            case value_t::vt_boolean:
+                return std::regex_match(value, std::regex("[Tt]rue|[Ff]alse|TRUE|FALSE"));
+            case value_t::vt_float:
+                return std::regex_match(value, std::regex("[+-]?(0|[1-9][1-9]*)([.][0-9]+)?"));
+            case value_t::vt_integer:
+                return std::regex_match(value, std::regex("[+-]?(0|[1-9][1-9]*)"));
+            case value_t::vt_unsigned:
+                return std::regex_match(value, std::regex("0|[1-9][1-9]*"));
+            default:
+                return false;
+            }
+        }
     };
 
 }
