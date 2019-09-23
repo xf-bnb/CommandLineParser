@@ -59,6 +59,8 @@ namespace xf::cmd
 
     class Parser
     {
+    public:
+
         class result_t
         {
             friend class Parser;
@@ -157,7 +159,7 @@ namespace xf::cmd
                     _add_value(key, std::stoi(value), keys);
                     break;
                 case value_t::vt_unsigned:
-                    _add_value(key, std::stoul(value), keys);
+                    _add_value(key, unsigned int(std::stoul(value)), keys);
                     break;
                 default:
                     _add_value(key, nullptr, keys);
