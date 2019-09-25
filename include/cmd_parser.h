@@ -229,7 +229,7 @@ namespace xf::cmd
             for (auto opt : options) AddOption(opt);
         }
 
-        size_type AddOption(const pair_t<set_t<string_t>, option_t>& option)
+        Parser& AddOption(const pair_t<set_t<string_t>, option_t>& option)
         {
             if (!option.first.empty())
             {
@@ -252,7 +252,7 @@ namespace xf::cmd
                 }
             }
 
-            return option.first.size();
+            return *this;
         }
 
         size_type RemoveOption(const set_t<string_t>& keys)
@@ -280,9 +280,23 @@ namespace xf::cmd
             return _Parse(args, { &Parser::_OnKey, &Parser::_OnValue, &Parser::_OnOptional });
         }
 
-        result_t Parse(const char* const argv[], int from, int to) const
+        template<size_type n>
+        result_t Parse(const char* const (&argv)[n], unsigned int from, unsigned int to) const
         {
+            static_assert(0 < n, "the size of argv must be greater than 0.");
             return Parse(list_t<string_t>(argv + from, argv + to));
+        }
+
+        template<size_type n>
+        result_t Parse(const char* const (&argv)[n], unsigned int from) const
+        {
+            return Parse(argv, from, n);
+        }
+
+        template<size_type n>
+        result_t Parse(const char* const (&argv)[n]) const
+        {
+            return Parse(argv, 0, n);
         }
 
     private:
