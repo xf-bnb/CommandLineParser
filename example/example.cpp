@@ -3,38 +3,34 @@
 #include "../include/cmd_parser.h"
 
 
-void test_regex(const std::vector<std::string>& strs, const std::string& reg_text)
+void Show(const xf::cmd::Parser::result_t& result)
 {
-    std::regex reg(reg_text);
-    for (auto s : strs)
-        std::cout << s << ": " << std::regex_match(s, reg) << std::endl;
+    std::cout << "code: " << result.get_state() << ", msg: " << result.get_msg() << std::endl;
+    
 }
 
 
 int main()
 {
-    // test_regex({ "true", "True", "TRUE", "tRue", "true|false", "truef", "False", "false", "fAlse", "Frank" },
-    //           "[Tt]rue|[Ff]alse|TRUE|FALSE");
+    using v_t = xf::cmd::value_t;
+    using m_t = xf::cmd::mode_t;
+    using opt_t = xf::cmd::option_t;
 
-    // test_regex({ "0", "01", "123", "-123", "+123", "123.45", "1", "a", "", "123a" },
-    //            "0|[1-9][1-9]*");
+    xf::cmd::Parser parser(
+        { {{"-a", "--aa"}, {v_t::vt_boolean, m_t::k_required | m_t::v_required}},
+          {{"-b", "--bb"}, {v_t::vt_integer, m_t::k_required | m_t::v_required}},
+          {{"-c", "--cc"}, {v_t::vt_unsigned, m_t::k_required | m_t::v_required}}, 
+          {{"-d", "--dd"}, {v_t::vt_float, m_t::v_required}}, 
+          {{"-x", "--xx"}, {v_t::vt_string, m_t::k_required | m_t::v_required}},
+          {{"-y", "--yy"}, {v_t::vt_string, m_t::k_required}},
+          {{"-z", "--zz"}, {v_t::vt_string, m_t::mt_none}} });
 
-    // test_regex({ "0", "01", "123", "-123", "+123", "123.45", "1", "-1", "-", "-0", "123a", "123+45", "+", "+0", "-01" },
-    //            "[+-]?(0|[1-9][1-9]*)");
 
+    const char* args[] = { "-a", "true", "--bb", "123", "-c=7", "-d=1.2", "--xx", "Frank", "--yy", "Xiong", "--zz" };
 
-    test_regex({ "0", "01", "123", "-123", "+123", "123.45", "1", "-1", "-1.02", "-0", "123a", "123+45", "+2.003", "+0", "-01", "+1.2", "-2.7", "0.8.7", "1.2.3" },
-               "[+-]?(0|[1-9][1-9]*)([.][0-9]+)?");
+    auto result = parser.Parse(args);
 
-    // const char* const argv[] = { "a", "1", "b", "7" };
-
-    xf::cmd::Parser parser;
-    
-    xf::cmd::Parser::result_t r = parser.Parse({ "a", "1", "b", "7" });
-
-    const auto& g = r.get();
-
-    auto msg = r.get_msg();
+    Show(result);
 
     return 0;
 }

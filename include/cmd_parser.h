@@ -7,7 +7,6 @@
 #include <set>
 #include <map>
 
-
 namespace xf::cmd
 {
     using string_t = std::string;
@@ -51,9 +50,9 @@ namespace xf::cmd
     struct option_t
     {
         value_t vt{ vt_nothing };
-        mode_t mt{ mt_none };
+        unsigned int mt{ mt_none };
 
-        option_t(value_t t = vt_nothing, mode_t r = mt_none) : vt(t), mt(r) { }
+        option_t(value_t t = vt_nothing, unsigned int m = mt_none) : vt(t), mt(m) { }
 
         bool check_mode(unsigned int t) const { return (t == (t & mt)); }
     };
@@ -68,6 +67,17 @@ namespace xf::cmd
 
             using variant_t = std::variant<nullptr_t, bool, int, unsigned int, double, string_t>;
 
+            template<typename _Type> static string_t _to_string(const _Type& v) { return std::to_string(v); }
+            template<> static string_t _to_string(const nullptr_t& v) { return ""; }
+            template<> static string_t _to_string(const bool& v) { return (v ? "true" : "false"); }
+            template<> static string_t _to_string(const string_t& v) { return v; }
+            template<> static string_t _to_string(const variant_t& v)
+            {
+                string_t x;
+                std::visit([&](auto&& t) mutable { x = _to_string(t); }, v);
+                return x;
+            }
+
             state_t state;
             string_t msg;
             pair_t<string_t, string_t> hint;
@@ -80,40 +90,51 @@ namespace xf::cmd
 
             bool is_valid() const { return (state_ok == state); }
             bool is_existing(const string_t& key) const { return k_map.find(key) != k_map.end(); }
-            bool has_value(const string_t& key) const { return is_existing(key); }
             state_t get_state() const { return state; }
             const string_t& get_msg() const { return msg; }
 
             operator bool() const { return is_valid(); }
             operator const string_t& () const { return get_msg(); }
 
+            bool has_value(const string_t& key) const
+            {
+                auto k_iter = k_map.find(key);
+                if (k_iter == k_map.end())
+                    return false;
+
+                auto v_iter = v_map.find(k_iter->second);
+                if (v_iter == v_map.end())
+                    return false;
+
+                return (value_t::vt_nothing < v_iter->second.index());
+            }
+
             template<typename _Type>
             _Type get(const string_t& key) const
             {
-                if (is_existing(key))
-                {
-                    return std::get<_Type>(v_map.at(k_map.at(key)));
-                }
-                else
-                {
-                    throw string_t("the key: " + key + " not existing !");
-                }
+                return std::get<_Type>(v_map.at(k_map.at(key)));
             }
 
             template<typename _Type>
             _Type get(const string_t& key, const _Type& value) const
             {
-                try
-                {
+                try {
                     return get<_Type>(key);
-                }
-                catch (const std::exception& e)
-                {
+                } catch (const std::exception& e) {
                     return value;
                 }
             }
 
             const map_t<string_t, variant_t>& get() const { return v_map; }
+            
+            map_t<string_t, string_t> args() const
+            {
+                map_t<string_t, string_t> mss;
+                for (auto v : v_map)
+                    mss.emplace(v.first, _to_string(v.second));
+
+                return mss;
+            }
 
         private:
 
@@ -172,14 +193,8 @@ namespace xf::cmd
             template<typename _Type>
             void _add_value(const string_t& key, const _Type& value, const set_t<string_t>& keys)
             {
-                v_map.emplace(std::make_pair(key, variant_t(value)));
-                for (auto k : keys) k_map.emplace(std::make_pair(k, key));
-            }
-
-            template<>
-            void _add_value<nullptr_t>(const string_t& key, const nullptr_t& value, const set_t<string_t>& keys)
-            {
-                _add_value(key, keys);
+                v_map.emplace(key, variant_t(value));
+                for (auto k : keys) k_map.emplace(k, key);
             }
 
             void _add_value(const string_t& key, const string_t& value, const set_t<string_t>& keys, const option_t& opt)
@@ -201,22 +216,26 @@ namespace xf::cmd
                 case value_t::vt_unsigned:
                     _add_value(key, unsigned int(std::stoul(value)), keys);
                     break;
-                default:
+                case value_t::vt_nothing:
                     _add_value(key, nullptr, keys);
+                    break;
+                default:
                     break;
                 }
             }
-
+            
             void _add_value(const string_t& key, const set_t<string_t>& keys)
             {
-                for (auto k : keys) k_map.emplace(std::make_pair(k, key));
+                _add_value(key, nullptr, keys);
             }
-
+            
         };
 
-        unsigned int group_id{ 0 };
-        map_t<string_t, unsigned int> key_map;
-        map_t<unsigned int, pair_t<set_t<string_t>, option_t>> opt_map;
+        using id_type = unsigned int;
+
+        id_type option_id{ 0 };
+        map_t<string_t, id_type> key_map;
+        map_t<id_type, pair_t<set_t<string_t>, option_t>> opt_map;
 
         enum { on_key, on_value, on_opt, parse_error };
 
@@ -233,9 +252,9 @@ namespace xf::cmd
         {
             if (!option.first.empty())
             {
-                ++group_id;
+                _update_option_id();
 
-                opt_map.emplace(std::make_pair(group_id, option));
+                opt_map.emplace(option_id, option);
 
                 for (auto key : option.first)
                 {
@@ -243,11 +262,11 @@ namespace xf::cmd
                     if (iter != key_map.end())
                     {
                         _RemoveOption(iter->second, key);
-                        iter->second = group_id;
+                        iter->second = option_id;
                     }
                     else
                     {
-                        key_map.emplace(std::make_pair(key, group_id));
+                        key_map.emplace(key, option_id);
                     }
                 }
             }
@@ -270,6 +289,30 @@ namespace xf::cmd
             }
 
             return n;
+        }
+
+        bool IsValid(const string_t& key) const
+        {
+            return (key_map.find(key) != key_map.end());
+        }
+
+        const option_t& Option(const string_t& key) const
+        {
+            return opt_map.at(key_map.at(key)).second;
+        }
+
+        const set_t<string_t>& Keys(const string_t& key) const
+        {
+            return opt_map.at(key_map.at(key)).first;
+        }
+
+        set_t<string_t> Keys() const
+        {
+            set_t<string_t> keys;
+            for (auto v : key_map)
+                keys.emplace(v.first);
+
+            return keys;
         }
 
         result_t Parse(const list_t<string_t>& args) const
@@ -301,13 +344,9 @@ namespace xf::cmd
 
     private:
 
-        struct less_t {
-            bool operator()(const string_t& a, const string_t& b) const {
-                return ((a.size() == b.size()) ? (a < b) : (b.size() < a.size()));
-            }
-        };
+        void _update_option_id() { ++option_id; }
 
-        using _parse_func_type = size_type (Parser::*)(result_t&, const string_t&, const std::set<string_t, less_t>&, string_t&, option_t&) const;
+        using _parse_func_type = size_type (Parser::*)(result_t&, const string_t&, const list_t<string_t>&, string_t&, option_t&) const;
 
         template<size_type n>
         result_t _Parse(const list_t<string_t>& args, const _parse_func_type(&_parse_functions)[n]) const
@@ -315,7 +354,11 @@ namespace xf::cmd
             string_t key;
             option_t opt;
             size_type index(on_key);
-            auto keys = _Keys();
+
+            list_t<string_t> keys;
+            for (auto v : key_map) keys.emplace_back(v.first);
+            std::sort(keys.begin(), keys.end(), [](const string_t& a, const string_t& b) { return (b.size() < a.size()); });
+
             result_t result(state_t::state_ok, "ok");
 
             for (auto arg : args)
@@ -329,7 +372,7 @@ namespace xf::cmd
             switch (index)
             {
             case on_opt:
-                result._add_value(key, _Keys(key));
+                result._add_value(key, Keys(key));
             case on_key:
                 _CheckResult(result);
                 break;
@@ -343,7 +386,7 @@ namespace xf::cmd
             return result;
         }
 
-        size_type _OnKey(result_t& result, const string_t& arg, const std::set<string_t, less_t>& keys, string_t& k, option_t& opt) const
+        size_type _OnKey(result_t& result, const string_t& arg, const list_t<string_t>& keys, string_t& k, option_t& opt) const
         {
             for (auto key : keys)
             {
@@ -353,7 +396,7 @@ namespace xf::cmd
                         return _OnPerfectMatch(result, key, k, opt);
 
                     if (_is_equation(arg, key))
-                        return _OnEquation(result, key, arg.substr(key.size() + 1), _Option(key));
+                        return _OnEquation(result, key, arg.substr(key.size() + 1), Option(key));
 
                     break;
                 }
@@ -363,12 +406,12 @@ namespace xf::cmd
             return parse_error;
         }
 
-        size_type _OnValue(result_t& result, const string_t& arg, const std::set<string_t, less_t>& keys, string_t& k, option_t& opt) const
+        size_type _OnValue(result_t& result, const string_t& arg, const list_t<string_t>& keys, string_t& k, option_t& opt) const
         {
             return _OnValueEx(result, k, arg, opt);
         }
 
-        size_type _OnOptional(result_t& result, const string_t& arg, const std::set<string_t, less_t>& keys, string_t& k, option_t& opt) const
+        size_type _OnOptional(result_t& result, const string_t& arg, const list_t<string_t>& keys, string_t& k, option_t& opt) const
         {
             for (auto key : keys)
             {
@@ -376,14 +419,14 @@ namespace xf::cmd
                 {
                     if (_is_perfect_match(arg, key))
                     {
-                        result._add_value(k, _Keys(k));
+                        result._add_value(k, Keys(k));
                         return _OnPerfectMatch(result, key, k, opt);
                     }
 
                     if (_is_equation(arg, key))
                     {
-                        result._add_value(k, _Keys(k));
-                        return _OnEquation(result, key, arg.substr(key.size() + 1), _Option(key));
+                        result._add_value(k, Keys(k));
+                        return _OnEquation(result, key, arg.substr(key.size() + 1), Option(key));
                     }
 
                     break;
@@ -395,14 +438,14 @@ namespace xf::cmd
 
         size_type _OnPerfectMatch(result_t& result, const string_t& key, string_t& k, option_t& opt) const
         {
-            opt = _Option(key);
+            opt = Option(key);
             if (!result._check_key(key, opt))
                 return parse_error;
 
             k = key;
             if (value_t::vt_nothing == opt.vt)
             {
-                result._add_value(key, nullptr, _Keys(key));
+                result._add_value(key, nullptr, Keys(key));
                 return on_key;
             }
 
@@ -427,7 +470,7 @@ namespace xf::cmd
         {
             if (_check_type(value, opt))
             {
-                result._add_value(key, value, _Keys(key), opt);
+                result._add_value(key, value, Keys(key), opt);
                 return on_key;
             }
 
@@ -435,26 +478,7 @@ namespace xf::cmd
             return parse_error;
         }
 
-        const option_t& _Option(const string_t& key) const
-        {
-            return opt_map.at(key_map.at(key)).second;
-        }
-
-        const set_t<string_t>& _Keys(const string_t& key) const
-        {
-            return opt_map.at(key_map.at(key)).first;
-        }
-
-        std::set<string_t, less_t> _Keys() const
-        {
-            std::set<string_t, less_t> keys;
-            for (auto v : key_map)
-                keys.emplace(v.first);
-
-            return keys;
-        }
-
-        bool _RemoveOption(unsigned int id, const string_t& key)
+        bool _RemoveOption(id_type id, const string_t& key)
         {
             auto iter = opt_map.find(id);
             if (iter != opt_map.end())
@@ -473,7 +497,7 @@ namespace xf::cmd
         {
             if (state_t::state_ok == result.get_state())
             {
-                if (_Option(result.k_map.cbegin()->first).check_mode(mode_t::is_unique))
+                if (Option(result.k_map.cbegin()->first).check_mode(mode_t::is_unique))
                     return true;
 
                 for (auto opt : opt_map)
