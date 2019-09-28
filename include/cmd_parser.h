@@ -240,8 +240,6 @@ namespace xf::cmd
             
         };
 
-    private:
-
     public:
 
         Parser() = default;
