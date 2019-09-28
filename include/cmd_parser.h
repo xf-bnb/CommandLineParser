@@ -24,7 +24,7 @@ namespace xf::cmd
     template<typename _KeyType, typename _ValueType>
     using map_t = std::map<_KeyType, _ValueType>;
 
-    constexpr string_t version("a");
+    inline const char* version() { return "1.0.0-snapshot"; }
 
     enum value_t {
         vt_nothing, vt_string, vt_integer, vt_unsigned, vt_float, vt_boolean
