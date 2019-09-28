@@ -32,7 +32,7 @@ namespace xf::cmd
         mt_none    = 0x00,
         v_required = 0x01,          // value 是必需的
         k_required = 0x02,          // key 是必需的
-        is_unique  = 0x04           // key 是独占的
+        k_unique   = 0x04           // key 是独占的
     };
 
     enum state_t {
@@ -80,21 +80,22 @@ namespace xf::cmd
 
             state_t state;
             string_t msg;
-            pair_t<string_t, string_t> hint;
+            pair_t<string_t, string_t> extra;
             map_t<string_t, string_t> k_map;
             map_t<string_t, variant_t> v_map;
 
-            result_t(state_t s, const string_t& text) : state(s), msg(text) { }
+            result_t(state_t code, const string_t& text) : state(code), msg(text) { }
 
         public:
 
-            bool is_valid() const { return (state_ok == state); }
+            state_t code() const { return state; }
+            const string_t& message() const { return msg; }
+            const pair_t<string_t, string_t>& hint() const { return extra; }
+            bool is_valid() const { return (state_t::state_ok == code()); }
             bool is_existing(const string_t& key) const { return k_map.find(key) != k_map.end(); }
-            state_t get_state() const { return state; }
-            const string_t& get_msg() const { return msg; }
 
             operator bool() const { return is_valid(); }
-            operator const string_t& () const { return get_msg(); }
+            operator const string_t& () const { return message(); }
 
             bool has_value(const string_t& key) const
             {
@@ -141,28 +142,34 @@ namespace xf::cmd
             void _set_error(state_t s, const string_t& key)
             {
                 state = s;
-                hint.first = key;
+                extra.first = key;
 
                 switch (s)
                 {
+                case state_t::state_ok:
+                    msg = "ok";
+                    break;
+                case state_t::error_nothing:
+                    msg = R"(error: don't get any parameter.)";
+                    break;
                 case state_t::error_unrecognized:
-                    msg = R"(error: unrecognized parameter ")" + key + R"(")";
+                    msg = R"(error: unrecognized parameter ")" + key + R"(".)";
                     break;
                 case state_t::error_duplicated:
-                    hint.second = k_map[key];
-                    msg = R"(error: repeat paramter ")" + hint.first + R"(" and ")" + hint.second + R"(")";
+                    extra.second = k_map[key];
+                    msg = R"(error: repeat paramter ")" + extra.first + R"(" and ")" + extra.second + R"(".)";
                     break;
                 case state_t::error_missing_required:
                     msg = R"(error: the parameter ")" + key + R"(" must be specified but not found.)";
                     break;
                 case state_t::error_missing_value:
-                    msg = R"(error: parameter ")" + key + R"(" must have a value.)";
+                    msg = R"(error: parameter ")" + key + R"(" must specify a value.)";
                     break;
                 case state_t::error_redundant_value:
                     msg = R"(error: the parameter ")" + key + R"(" doesn't require value.)";
                     break;
                 case state_t::error_value_type:
-                    msg = R"(error: value-type error of parameter ")" + key + R"(")";
+                    msg = R"(error: value-type error of parameter ")" + key + R"(".)";
                     break;
                 case state_t::error_non_unique:
                     msg = R"(error: parameter ")" + key + R"(" can't be specified with other parameters.)";
@@ -181,7 +188,7 @@ namespace xf::cmd
                     return false;
                 }
 
-                if (!k_map.empty() && opt.check_mode(mode_t::is_unique))
+                if (!k_map.empty() && opt.check_mode(mode_t::k_unique))
                 {
                     _set_error(state_t::error_non_unique, key);
                     return false;
@@ -231,13 +238,7 @@ namespace xf::cmd
             
         };
 
-        using id_type = unsigned int;
-
-        id_type option_id{ 0 };
-        map_t<string_t, id_type> key_map;
-        map_t<id_type, pair_t<set_t<string_t>, option_t>> opt_map;
-
-        enum { on_key, on_value, on_opt, parse_error };
+    private:
 
     public:
 
@@ -296,17 +297,26 @@ namespace xf::cmd
             return (key_map.find(key) != key_map.end());
         }
 
-        const option_t& Option(const string_t& key) const
+        const option_t* GetOption(const string_t& key) const
         {
-            return opt_map.at(key_map.at(key)).second;
+            auto iter = key_map.find(key);
+            if (iter != key_map.end())
+                return &opt_map.at(iter->second).second;
+
+            return nullptr;
         }
 
-        const set_t<string_t>& Keys(const string_t& key) const
+        set_t<string_t> GetKeys(const string_t& key) const
         {
-            return opt_map.at(key_map.at(key)).first;
+            set_t<string_t> keys;
+            auto iter = key_map.find(key);
+            if (iter != key_map.end())
+                keys = opt_map.at(iter->second).first;
+
+            return keys;
         }
 
-        set_t<string_t> Keys() const
+        set_t<string_t> GetKeys() const
         {
             set_t<string_t> keys;
             for (auto v : key_map)
@@ -344,9 +354,26 @@ namespace xf::cmd
 
     private:
 
+        using id_type = unsigned int;
+        using _parse_func_type = size_type(Parser::*)(result_t&, const string_t&, const list_t<string_t>&, string_t&, option_t&) const;
+
+        id_type option_id{ 0 };
+        map_t<string_t, id_type> key_map;
+        map_t<id_type, pair_t<set_t<string_t>, option_t>> opt_map;
+
+        enum { on_key, on_value, on_opt, parse_error };
+
         void _update_option_id() { ++option_id; }
 
-        using _parse_func_type = size_type (Parser::*)(result_t&, const string_t&, const list_t<string_t>&, string_t&, option_t&) const;
+        const option_t& _Option(const string_t& key) const
+        {
+            return opt_map.at(key_map.at(key)).second;
+        }
+
+        const set_t<string_t>& _Keys(const string_t& key) const
+        {
+            return opt_map.at(key_map.at(key)).first;
+        }
 
         template<size_type n>
         result_t _Parse(const list_t<string_t>& args, const _parse_func_type(&_parse_functions)[n]) const
@@ -372,7 +399,7 @@ namespace xf::cmd
             switch (index)
             {
             case on_opt:
-                result._add_value(key, Keys(key));
+                result._add_value(key, _Keys(key));
             case on_key:
                 _CheckResult(result);
                 break;
@@ -396,7 +423,7 @@ namespace xf::cmd
                         return _OnPerfectMatch(result, key, k, opt);
 
                     if (_is_equation(arg, key))
-                        return _OnEquation(result, key, arg.substr(key.size() + 1), Option(key));
+                        return _OnEquation(result, key, arg.substr(key.size() + 1), _Option(key));
 
                     break;
                 }
@@ -419,14 +446,14 @@ namespace xf::cmd
                 {
                     if (_is_perfect_match(arg, key))
                     {
-                        result._add_value(k, Keys(k));
+                        result._add_value(k, _Keys(k));
                         return _OnPerfectMatch(result, key, k, opt);
                     }
 
                     if (_is_equation(arg, key))
                     {
-                        result._add_value(k, Keys(k));
-                        return _OnEquation(result, key, arg.substr(key.size() + 1), Option(key));
+                        result._add_value(k, _Keys(k));
+                        return _OnEquation(result, key, arg.substr(key.size() + 1), _Option(key));
                     }
 
                     break;
@@ -438,18 +465,18 @@ namespace xf::cmd
 
         size_type _OnPerfectMatch(result_t& result, const string_t& key, string_t& k, option_t& opt) const
         {
-            opt = Option(key);
+            opt = _Option(key);
             if (!result._check_key(key, opt))
                 return parse_error;
 
             k = key;
             if (value_t::vt_nothing == opt.vt)
             {
-                result._add_value(key, nullptr, Keys(key));
+                result._add_value(key, nullptr, _Keys(key));
                 return on_key;
             }
 
-            return (opt.check_mode(mode_t::k_required) ? on_value : on_opt);
+            return (opt.check_mode(mode_t::v_required) ? on_value : on_opt);
         }
 
         size_type _OnEquation(result_t& result, const string_t& key, const string_t& value, const option_t& opt) const
@@ -470,7 +497,7 @@ namespace xf::cmd
         {
             if (_check_type(value, opt))
             {
-                result._add_value(key, value, Keys(key), opt);
+                result._add_value(key, value, _Keys(key), opt);
                 return on_key;
             }
 
@@ -495,9 +522,9 @@ namespace xf::cmd
 
         bool _CheckResult(result_t& result) const
         {
-            if (state_t::state_ok == result.get_state())
+            if (state_t::state_ok == result.code())
             {
-                if (Option(result.k_map.cbegin()->first).check_mode(mode_t::is_unique))
+                if (_Option(result.k_map.cbegin()->first).check_mode(mode_t::k_unique))
                     return true;
 
                 for (auto opt : opt_map)
@@ -545,9 +572,9 @@ namespace xf::cmd
             case value_t::vt_float:
                 return std::regex_match(value, std::regex("[+-]?(0|[1-9][1-9]*)([.][0-9]+)?"));
             case value_t::vt_integer:
-                return std::regex_match(value, std::regex("[+-]?(0|[1-9][1-9]*)"));
+                return std::regex_match(value, std::regex("[+-]?(0|[1-9][0-9]*)"));
             case value_t::vt_unsigned:
-                return std::regex_match(value, std::regex("0|[1-9][1-9]*"));
+                return std::regex_match(value, std::regex("0|[1-9][0-9]*"));
             default:
                 return false;
             }
