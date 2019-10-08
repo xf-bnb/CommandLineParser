@@ -4,7 +4,7 @@
 
 void Show(const xf::cmd::Parser::result_t& result)
 {
-    std::cout << "code: " << result.code() << ", msg: " << result.msg() << std::endl;
+    std::cout << "code: " << result.code() << ", info: " << result.info() << std::endl;
     for (auto item : result.args())
         std::cout << item.first << ": " << item.second << std::endl;
 }

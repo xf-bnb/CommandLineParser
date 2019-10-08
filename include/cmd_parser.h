@@ -74,9 +74,8 @@ namespace xf::cmd
         bool check(const string_t& value) const { return (_check && (_check(value))); }
 
         template<typename _ValueType, typename _CheckType>
-        static option_t make(bool u, bool k, bool v, _CheckType check_expr)
-        {
-            return option_t(_type_mapper<_ValueType>::_value, u, k, v, check_expr);
+        static option_t make(bool u, bool k, bool v, _CheckType checker) {
+            return option_t(_type_mapper<_ValueType>::_value, u, k, v, checker);
         }
 
         template<typename _ValueType> static option_t make(bool, bool, bool);
@@ -140,23 +139,23 @@ namespace xf::cmd
             }
 
             state_t _state;
-            string_t _msg;
+            string_t _info;
             pair_t<string_t, string_t> _extra;
             map_t<string_t, string_t> _k_map;
             map_t<string_t, variant_t> _v_map;
 
-            result_t(state_t code, const string_t& text) : _state(code), _msg(text) { }
+            result_t(state_t code, const string_t& text) : _state(code), _info(text) { }
 
         public:
 
             state_t code() const { return _state; }
-            const string_t& msg() const { return _msg; }
+            const string_t& info() const { return _info; }
             const pair_t<string_t, string_t>& hint() const { return _extra; }
             bool is_valid() const { return (state_t::state_ok == code()); }
             bool is_existing(const string_t& key) const { return _k_map.find(key) != _k_map.end(); }
 
             operator bool() const { return is_valid(); }
-            operator const string_t& () const { return msg(); }
+            operator const string_t& () const { return info(); }
 
             bool has_value(const string_t& key) const
             {
@@ -200,44 +199,40 @@ namespace xf::cmd
 
         private:
 
-            void _set_error(state_t s, const string_t& key)
+            static string_t _make_info(state_t s, const string_t& a, const string_t& b)
             {
-                _state = s;
-                _extra.first = key;
-
                 switch (s)
                 {
                 case state_t::state_ok:
-                    _msg = "ok";
-                    break;
+                    return "ok";
                 case state_t::error_nothing:
-                    _msg = R"(error: don't get any parameter.)";
-                    break;
+                    return R"(error: don't get any parameter.)";
                 case state_t::error_unrecognized:
-                    _msg = R"(error: unrecognized parameter ")" + key + R"(".)";
-                    break;
+                    return R"(error: unrecognized parameter ")" + a + R"(".)";
                 case state_t::error_duplicated:
-                    _extra.second = _k_map[key];
-                    _msg = R"(error: repeat paramter ")" + _extra.first + R"(" and ")" + _extra.second + R"(".)";
-                    break;
+                    return R"(error: repeat paramter ")" + a + R"(" and ")" + b + R"(".)";
                 case state_t::error_missing_required:
-                    _msg = R"(error: the parameter ")" + key + R"(" must be specified but not found.)";
-                    break;
+                    return R"(error: the parameter ")" + a + R"(" must be specified but not found.)";
                 case state_t::error_missing_value:
-                    _msg = R"(error: parameter ")" + key + R"(" must specify a value.)";
-                    break;
+                    return R"(error: parameter ")" + a + R"(" must specify a value.)";
                 case state_t::error_redundant_value:
-                    _msg = R"(error: the parameter ")" + key + R"(" doesn't require value.)";
-                    break;
+                    return R"(error: the parameter ")" + a + R"(" doesn't require value.)";
                 case state_t::error_value_type:
-                    _msg = R"(error: value-type error of parameter ")" + key + R"(".)";
-                    break;
+                    return R"(error: the ")" + b + R"(" can't be treated as the value of parameter ")" + a + R"(".)";
                 case state_t::error_non_unique:
-                    _msg = R"(error: parameter ")" + key + R"(" can't be specified with other parameters.)";
-                    break;
+                    return R"(error: parameter ")" + a + R"(" can't be specified with other parameters.)";
                 default:
-                    break;
+                    return string_t();
                 }
+            }
+
+            void _set_error(state_t s, const string_t& a = string_t(), const string_t& b = string_t())
+            {
+                _state = s;
+                _extra.first = a;
+                _extra.second = ((state_t::error_duplicated == s) ? (_k_map[a]) : b);
+
+                _info = _make_info(_state, _extra.first, _extra.second);
             }
 
             bool _check_key(const string_t& key, const option_t& opt)
