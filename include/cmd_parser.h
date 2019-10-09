@@ -28,20 +28,28 @@ namespace xf::cmd
     inline const char* version() { return "1.0.0-snapshot"; }
 
     enum class value_t : unsigned char {
-        vt_nothing, vt_string, vt_integer, vt_unsigned, vt_float, vt_boolean
+        vt_string, vt_integer, vt_unsigned, vt_float, vt_boolean, vt_nothing
     };
 
     class option_t
     {
+    public:
+
+        static inline bool is_string(const string_t& v) { return !v.empty(); }
+        static inline bool is_boolean(const string_t& v) { return std::regex_match(v, std::regex("[Tt]rue|[Ff]alse|TRUE|FALSE")); }
+        static inline bool is_integer(const string_t& v) { return std::regex_match(v, std::regex("[+-]?(0|[1-9][0-9]*)")); }
+        static inline bool is_unsigned(const string_t& v) { return std::regex_match(v, std::regex("0|[1-9][0-9]*")); }
+        static inline bool is_float(const string_t& v) { return std::regex_match(v, std::regex("[+-]?(0|[1-9][1-9]*)([.][0-9]+)?")); }
+
     private:
 
-        using _FuncType = std::function<bool(const string_t&)>;
+        using _CallType = std::function<bool (const string_t&)>;
 
         value_t _vt;
         bool _is_unique;
         bool _k_required;
         bool _v_required;
-        _FuncType _check;
+        _CallType _check;
 
         template<typename _ValueType> struct _type_mapper;
         template<> struct _type_mapper<bool> { static constexpr value_t _value = value_t::vt_boolean; };
@@ -51,11 +59,13 @@ namespace xf::cmd
         template<> struct _type_mapper<string_t> { static constexpr value_t _value = value_t::vt_string; };
         template<> struct _type_mapper<nullptr_t> { static constexpr value_t _value = value_t::vt_nothing; };
 
+        static constexpr bool (*_func_list[])(const string_t&){ is_string, is_integer, is_unsigned, is_float, is_boolean, nullptr };
+
     public:
 
         option_t() = default;
 
-        option_t(const value_t& vt, bool u, bool k, bool v, _FuncType _func)
+        option_t(const value_t& vt, bool u, bool k, bool v, _CallType _func)
             : _vt(vt), _is_unique(u), _k_required(k), _v_required(v), _check(_func)
         { }
 
@@ -63,8 +73,12 @@ namespace xf::cmd
             : option_t(vt, u, k, v, [expr](const string_t& value) { return std::regex_match(value, std::regex(expr)); })
         { }
 
+        option_t(const value_t& vt, bool u, bool k, bool v)
+            : option_t(vt, u, k, v, _func_list[static_cast<size_type>(vt)])
+        { }
+
         option_t(bool u, bool k)
-            : option_t(value_t::vt_nothing, u, k, false, _FuncType())
+            : option_t(value_t::vt_nothing, u, k, false, _CallType())
         { }
 
         const value_t& value_type() const { return _vt; }
@@ -78,26 +92,9 @@ namespace xf::cmd
             return option_t(_type_mapper<_ValueType>::_value, u, k, v, checker);
         }
 
-        template<typename _ValueType> static option_t make(bool, bool, bool);
-
-        template<> static option_t make<bool>(bool u, bool k, bool v) {
-            return make<bool>(u, k, v, "[Tt]rue|[Ff]alse|TRUE|FALSE");
-        }
-
-        template<> static option_t make<int>(bool u, bool k, bool v) {
-            return make<int>(u, k, v, "[+-]?(0|[1-9][0-9]*)");
-        }
-
-        template<> static option_t make<unsigned int>(bool u, bool k, bool v) {
-            return make<unsigned int>(u, k, v, "0|[1-9][0-9]*");
-        }
-
-        template<> static option_t make<double>(bool u, bool k, bool v) {
-            return make<double>(u, k, v, "[+-]?(0|[1-9][1-9]*)([.][0-9]+)?");
-        }
-
-        template<> static option_t make<string_t>(bool u, bool k, bool v) {
-            return make<string_t>(u, k, v, [](const string_t& value) { return !value.empty(); });
+        template<typename _ValueType>
+        static option_t make(bool u, bool k, bool v) {
+            return option_t(_type_mapper<_ValueType>::_value, u, k, v);
         }
 
         template<typename _ValueType> static option_t make(bool, bool);
@@ -110,15 +107,15 @@ namespace xf::cmd
     public:
 
         enum state_t {
-            state_ok,                   // ok
-            error_nothing,              // 没有任何参数
-            error_unrecognized,         // 无法识别的参数
-            error_duplicated,           // 重复的参数
-            error_missing_required,     // 缺少必需的参数
-            error_missing_value,        // 缺少参数
-            error_redundant_value,      // 多余的参数值
-            error_value_type,           // 参数值类型错误
-            error_non_unique            // 参数唯一性冲突
+            s_ok,                   // ok
+            s_nothing,              // 没有任何参数
+            s_k_unrecognized,       // 参数不能识别
+            s_k_duplicated,         // 参数重复
+            s_k_conflict,           // 参数唯一性冲突
+            s_k_missing,            // 缺少必需的参数
+            s_v_missing,            // 参数值缺失
+            s_v_redundant,          // 参数值多余
+            s_v_error               // 参数值错误
         };
 
         class result_t
@@ -151,7 +148,7 @@ namespace xf::cmd
             state_t code() const { return _state; }
             const string_t& info() const { return _info; }
             const pair_t<string_t, string_t>& hint() const { return _extra; }
-            bool is_valid() const { return (state_t::state_ok == code()); }
+            bool is_valid() const { return (state_t::s_ok == code()); }
             bool is_existing(const string_t& key) const { return _k_map.find(key) != _k_map.end(); }
 
             operator bool() const { return is_valid(); }
@@ -203,23 +200,23 @@ namespace xf::cmd
             {
                 switch (s)
                 {
-                case state_t::state_ok:
+                case state_t::s_ok:
                     return "ok";
-                case state_t::error_nothing:
+                case state_t::s_nothing:
                     return R"(error: don't get any parameter.)";
-                case state_t::error_unrecognized:
+                case state_t::s_k_unrecognized:
                     return R"(error: unrecognized parameter ")" + a + R"(".)";
-                case state_t::error_duplicated:
+                case state_t::s_k_duplicated:
                     return R"(error: repeat paramter ")" + a + R"(" and ")" + b + R"(".)";
-                case state_t::error_missing_required:
+                case state_t::s_k_missing:
                     return R"(error: the parameter ")" + a + R"(" must be specified but not found.)";
-                case state_t::error_missing_value:
+                case state_t::s_v_missing:
                     return R"(error: parameter ")" + a + R"(" must specify a value.)";
-                case state_t::error_redundant_value:
+                case state_t::s_v_redundant:
                     return R"(error: the parameter ")" + a + R"(" doesn't require value.)";
-                case state_t::error_value_type:
+                case state_t::s_v_error:
                     return R"(error: the ")" + b + R"(" can't be treated as the value of parameter ")" + a + R"(".)";
-                case state_t::error_non_unique:
+                case state_t::s_k_conflict:
                     return R"(error: parameter ")" + a + R"(" can't be specified with other parameters.)";
                 default:
                     return string_t();
@@ -230,7 +227,7 @@ namespace xf::cmd
             {
                 _state = s;
                 _extra.first = a;
-                _extra.second = ((state_t::error_duplicated == s) ? (_k_map[a]) : b);
+                _extra.second = ((state_t::s_k_duplicated == s) ? (_k_map[a]) : b);
 
                 _info = _make_info(_state, _extra.first, _extra.second);
             }
@@ -240,13 +237,13 @@ namespace xf::cmd
                 auto iter = _k_map.find(key);
                 if (iter != _k_map.end())
                 {
-                    _set_error(state_t::error_duplicated, key);
+                    _set_error(state_t::s_k_duplicated, key);
                     return false;
                 }
 
                 if (!_k_map.empty() && opt.is_unique())
                 {
-                    _set_error(state_t::error_non_unique, key);
+                    _set_error(state_t::s_k_conflict, key);
                     return false;
                 }
 
@@ -382,7 +379,7 @@ namespace xf::cmd
         result_t Parse(const list_t<string_t>& args) const
         {
             if (args.empty())
-                return result_t(state_t::error_nothing, R"(error: don't get any parameter.)");
+                return result_t(state_t::s_nothing, R"(error: don't get any parameter.)");
 
             return _Parse(args, { &Parser::_OnKey, &Parser::_OnValue, &Parser::_OnOptional });
         }
@@ -440,7 +437,7 @@ namespace xf::cmd
             for (auto v : key_map) keys.emplace_back(v.first);
             std::sort(keys.begin(), keys.end(), [](const string_t& a, const string_t& b) { return (b.size() < a.size()); });
 
-            result_t result(state_t::state_ok, "ok");
+            result_t result(state_t::s_ok, "ok");
 
             for (auto arg : args)
             {
@@ -458,7 +455,7 @@ namespace xf::cmd
                 _CheckResult(result);
                 break;
             case on_value:
-                result._set_error(state_t::error_missing_value, key);
+                result._set_error(state_t::s_v_missing, key);
                 break;
             default:
                 break;
@@ -483,7 +480,7 @@ namespace xf::cmd
                 }
             }
 
-            result._set_error(state_t::error_unrecognized, arg);
+            result._set_error(state_t::s_k_unrecognized, arg);
             return parse_error;
         }
 
@@ -540,7 +537,7 @@ namespace xf::cmd
 
             if (value_t::vt_nothing == opt.value_type())
             {
-                result._set_error(state_t::error_redundant_value, key);
+                result._set_error(state_t::s_v_redundant, key);
                 return parse_error;
             }
 
@@ -555,7 +552,7 @@ namespace xf::cmd
                 return on_key;
             }
 
-            result._set_error(state_t::error_value_type, key);
+            result._set_error(state_t::s_v_error, key, value);
             return parse_error;
         }
 
@@ -576,7 +573,7 @@ namespace xf::cmd
 
         bool _CheckResult(result_t& result) const
         {
-            if (state_t::state_ok == result.code())
+            if (state_t::s_ok == result.code())
             {
                 if (_Option(result._k_map.cbegin()->first).is_unique())
                     return true;
@@ -588,7 +585,7 @@ namespace xf::cmd
                         const string_t& key(*opt.second.first.cbegin());
                         if (!result.is_existing(key))
                         {
-                            result._set_error(state_t::error_missing_required, key);
+                            result._set_error(state_t::s_k_missing, key);
                             return false;
                         }
                     }
