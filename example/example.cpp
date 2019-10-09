@@ -81,12 +81,12 @@ bool test_1()
     result = parser.Parse({"-i", "/home/file", "-o=.", "-m=4", "--level", "L2", "-x=true", "-d", "-f", "xml" });
     Show(result);
     bool p8 = (result && (result.get<std::string>("--input") == "/home/file")
-                  && (result.get<std::string>("--output") == ".")
-                  && (result.get<std::string>("--level") == "L2")
-                  && (result.get<std::string>("--format") == "xml")
-                  && (result.get<unsigned int>("--mode") == 4)
-                  && result.get<bool>("--external")
-                  && result.is_existing("--detail"));
+                      && (result.get<std::string>("--output") == ".")
+                      && (result.get<std::string>("--level") == "L2")
+                      && (result.get<std::string>("--format") == "xml")
+                      && (result.get<unsigned int>("--mode") == 4)
+                      && result.get<bool>("--external")
+                      && result.is_existing("--detail"));
 
     return (p1 && p2 && p3 && p4 && p5 && p6 && p7 && p8);
 }
@@ -97,27 +97,55 @@ bool test_2()
         { {{"-x", "--xx"}, {v_t::vt_boolean, true, true, true}},
           {{"-y", "--yy"}, {v_t::vt_integer, false, true, true}} });
 
-    auto result = parser.Parse({ "-x=false", "-y=7" });
+    auto r1= parser.Parse({ "-x=false", "-y=7" });
+    Show(r1);
+    auto r2 = parser.Parse({ "-y", "10", "-x", "true" });
+    Show(r2);
 
-    Show(result);
-
-    return (xf::cmd::Parser::state_t::s_k_conflict == result.code());
+    return (xf::cmd::Parser::state_t::s_k_conflict == r1.code()
+         && xf::cmd::Parser::state_t::s_k_conflict == r2.code());
 }
 
 bool test_3()
 {
     xf::cmd::Parser parser;
-    parser.AddOption({ {"-x", "--xx"}, opt_t::make<bool>(true, true, true) })
-          .AddOption({ {"-y", "--yy"}, {v_t::vt_string, false, true, true, std::bind(&xf::cmd::Parser::IsValid, &parser, std::placeholders::_1)} })
+    parser.AddOption({ {"-x", "--xx"}, opt_t::make<bool>(false, true, false) })
+          .AddOption({ {"-y", "--yy"}, {v_t::vt_string, true, false, false, std::bind(&xf::cmd::Parser::IsValid, &parser, std::placeholders::_1)} })
           .AddOption({ {"-z", "--zz"}, {v_t::vt_integer, false, true, true, "[12][0-9]"} });
 
-    auto result = parser.Parse({ "-x=false", "-y=--xx" });
-
+    auto result = parser.Parse({ "-x=true", "-z=30" });
     Show(result);
+    bool p1 = (!result && xf::cmd::Parser::state_t::s_v_error == result.code());
 
-    return (xf::cmd::Parser::state_t::s_k_conflict == result.code());
+    result = parser.Parse({ "-x", "-z=29" });
+    Show(result);
+    bool p2 = (result && result.get("-x", true) && 29 == result.get<int>("--zz"));
 
-    return false;
+    result = parser.Parse({ "-x", "-y=--zz" });
+    Show(result);
+    bool p3 = (!result && xf::cmd::Parser::state_t::s_k_conflict == result.code());
+
+    result = parser.Parse({ "-y=--pp" });
+    Show(result);
+    bool p4 = (!result && xf::cmd::Parser::state_t::s_v_error == result.code());
+
+    result = parser.Parse({ "-y=" });
+    Show(result);
+    bool p5 = (!result && xf::cmd::Parser::state_t::s_k_unrecognized == result.code());
+
+    result = parser.Parse({ "-y" });
+    Show(result);
+    bool p6 = (result && result.get("-y", std::string("value")) == "value");
+
+    result = parser.Parse({ "-y", "--xx=true" });
+    Show(result);
+    bool p7 = (!result && xf::cmd::Parser::state_t::s_v_error == result.code());
+
+    result = parser.Parse({ "-y=--xx" });
+    Show(result);
+    bool p8 = (result && result.get<std::string>("-y") == "--xx");
+
+    return (p1 && p2 && p3 && p4 && p5 && p6 && p7 && p8);
 }
 
 int main()

@@ -140,6 +140,7 @@ namespace xf::cmd
             pair_t<string_t, string_t> _extra;
             map_t<string_t, string_t> _k_map;
             map_t<string_t, variant_t> _v_map;
+            bool _is_unique{ false };
 
             result_t(state_t code, const string_t& text) : _state(code), _info(text) { }
 
@@ -178,7 +179,8 @@ namespace xf::cmd
             {
                 try {
                     return get<_Type>(key);
-                } catch (const std::exception& e) {
+                } catch (const std::exception& /* e */) {
+                    // std::cout << e.what() << std::endl;
                     return value;
                 }
             }
@@ -227,23 +229,35 @@ namespace xf::cmd
             {
                 _state = s;
                 _extra.first = a;
-                _extra.second = ((state_t::s_k_duplicated == s) ? (_k_map[a]) : b);
+                _extra.second = b;
 
                 _info = _make_info(_state, _extra.first, _extra.second);
             }
 
             bool _check_key(const string_t& key, const option_t& opt)
             {
-                auto iter = _k_map.find(key);
-                if (iter != _k_map.end())
+                if (_k_map.empty())
                 {
-                    _set_error(state_t::s_k_duplicated, key);
+                    if (opt.is_unique()) _is_unique = true;
+                    return true;
+                }
+
+                if (_is_unique)
+                {
+                    _set_error(state_t::s_k_conflict, _v_map.begin()->first);
                     return false;
                 }
 
-                if (!_k_map.empty() && opt.is_unique())
+                if (opt.is_unique())
                 {
                     _set_error(state_t::s_k_conflict, key);
+                    return false;
+                }
+
+                auto iter = _k_map.find(key);
+                if (iter != _k_map.end())
+                {
+                    _set_error(state_t::s_k_duplicated, iter->second, key);
                     return false;
                 }
 
@@ -491,6 +505,9 @@ namespace xf::cmd
 
         size_type _OnOptional(result_t& result, const string_t& arg, const list_t<string_t>& keys, string_t& k, option_t& opt) const
         {
+            if (opt.is_unique())
+                return _OnValueEx(result, k, arg, opt);
+
             for (auto key : keys)
             {
                 if (_start_with(arg, key))
