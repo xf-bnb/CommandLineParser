@@ -1,4 +1,14 @@
-﻿#pragma once
+﻿/*
+command line parameter parsing library for Modern C++
+version 1.0.0
+https://github.com/xf-bnb/CommandLineParser
+
+Licensed under the MIT License <http://opensource.org/licenses/MIT>.
+SPDX - License - Identifier : MIT
+Copyright(c) 2019 Frank Xiong <https://github.com/xf-bnb>.
+*/
+
+#pragma once
 
 #include <functional>
 #include <regex>
@@ -10,6 +20,8 @@
 
 namespace xf::cmd
 {
+    inline const char* version() { return "1.0.0"; }
+
     using string_t = std::string;
     using size_type = std::size_t;
 
@@ -24,8 +36,6 @@ namespace xf::cmd
 
     template<typename _KeyType, typename _ValueType>
     using map_t = std::map<_KeyType, _ValueType>;
-
-    inline const char* version() { return "1.0.0-snapshot"; }
 
     enum class value_t : unsigned char {
         vt_string, vt_integer, vt_unsigned, vt_float, vt_boolean, vt_nothing
@@ -362,6 +372,17 @@ namespace xf::cmd
             return (key_map.find(key) != key_map.end());
         }
 
+        bool IsSame(const string_t& k1, const string_t& k2) const
+        {
+            auto iter1 = key_map.find(k1);
+            if (iter1 == key_map.end()) return false;
+
+            auto iter2 = key_map.find(k2);
+            if (iter2 == key_map.end()) return false;
+
+            return (iter1->second == iter2->second);
+        }
+
         const option_t* GetOption(const string_t& key) const
         {
             auto iter = key_map.find(key);
@@ -390,31 +411,31 @@ namespace xf::cmd
             return keys;
         }
 
+        using const_char_ptr = const string_t::value_type*;
+
+        result_t Parse(const const_char_ptr* argv, size_type from, unsigned int to) const
+        {
+            return Parse(list_t<string_t>(argv + from, argv + to));
+        }
+
+        template<size_type n>
+        result_t Parse(const const_char_ptr (&argv)[n], unsigned int from) const
+        {
+            return Parse(argv, from, n);
+        }
+        
+        template<size_type n>
+        result_t Parse(const const_char_ptr (&argv)[n]) const
+        {
+            return Parse(argv, 0, n);
+        }
+
         result_t Parse(const list_t<string_t>& args) const
         {
             if (args.empty())
                 return result_t(state_t::s_nothing, R"(error: don't get any parameter.)");
 
             return _Parse(args, { &Parser::_OnKey, &Parser::_OnValue, &Parser::_OnOptional });
-        }
-
-        template<size_type n>
-        result_t Parse(const char* const (&argv)[n], unsigned int from, unsigned int to) const
-        {
-            static_assert(0 < n, "the size of argv must be greater than 0.");
-            return Parse(list_t<string_t>(argv + from, argv + to));
-        }
-
-        template<size_type n>
-        result_t Parse(const char* const (&argv)[n], unsigned int from) const
-        {
-            return Parse(argv, from, n);
-        }
-
-        template<size_type n>
-        result_t Parse(const char* const (&argv)[n]) const
-        {
-            return Parse(argv, 0, n);
         }
 
     private:

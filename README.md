@@ -4,7 +4,7 @@
 ##### Version: 1.0.0
 
 ### Integration
-将位于`include`目录中的`cmd_parser.h`复制到自己的项目中即可。
+将位于`include`目录中的 [cmd_parser.h](include/cmd_parser.h) 头文件拷贝到自己的项目中即可。
 
 ### Usage
 * 包含头文件:
@@ -34,9 +34,9 @@ int main(int argc, char *argv[])
     xf::cmd::Parser parser(
         { {{"-i", "--input"}, {xf::cmd::value_t::vt_string, false, true, true}},
           {{"-c", "--config"}, {xf::cmd::value_t::vt_integer, false, true, false}},
-          {{"-s", "-x", "--status"}, {xf::cmd::value_t::vt_bool, false, true, false}} });
+          {{"-s", "-x", "--status"}, {xf::cmd::value_t::vt_boolean, false, true, false}} });
 
-    auto result = parser.Parse(argv, 1);
+    auto result = parser.Parse(argv, 1, argc);
 
     if (result) // if (result.is_valid())
     {
@@ -79,7 +79,7 @@ vt_nothing  // 参数没有值
   * 参数是否必须，即必须指定的参数，但如果已经指定了具有唯一性的参数，可以不指定。
   * 参数必须有值，即指定参数的同时必须为其指定一个值，否则可以不指定。
 
-#### 示例
+#### 举例说明
 * 假设规定命令行参数中可能包含：
   * 参数名：`--input`，值类型：`string`，此参数必须在命令行中指定，同时也必须指定值。
   * 参数名：`--config`，值类型：`integer`，此参数必须在命令行中指定，但是值可选。

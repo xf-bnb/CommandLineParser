@@ -25,18 +25,16 @@ bool test_0()
           {{"--abcdef", "-f"}, {v_t::vt_nothing,  false, true, false}} });
 
     const char* args[] = { "--abcd=1.2", "--abc", "7", "--abcdef", "-b", "-2", "-a", "false", "-e=Frank" };
-
     auto result = parser.Parse(args);
 
     Show(result);
 
-    return (result
-            && (result.get<bool>       ("-a") == false)
-            && (result.get<int>        ("-b") == -2)
-            && (result.get<unsigned>   ("-c") == 7)
-            && (result.get<double>     ("-d") == 1.2)
-            && (result.get<std::string>("-e") == "Frank")
-            && (result.is_existing("-f")));
+    return (result && (result.get<bool>       ("-a") == false)
+                   && (result.get<int>        ("-b") == -2)
+                   && (result.get<unsigned>   ("-c") == 7)
+                   && (result.get<double>     ("-d") == 1.2)
+                   && (result.get<std::string>("-e") == "Frank")
+                   && (result.is_existing("-f")));
 }
 
 bool test_1()
@@ -103,7 +101,9 @@ bool test_2()
     Show(r2);
 
     return (xf::cmd::Parser::state_t::s_k_conflict == r1.code()
-         && xf::cmd::Parser::state_t::s_k_conflict == r2.code());
+         && xf::cmd::Parser::state_t::s_k_conflict == r2.code()
+         && parser.IsSame("-x", "--xx")
+         && !parser.IsSame("-x", "-y"));
 }
 
 bool test_3()
