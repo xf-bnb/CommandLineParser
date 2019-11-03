@@ -1,11 +1,11 @@
 ﻿#include <iostream>
 
-#include "../include/cmd_parser.h"
+#include "../include/xf_cmd_parser.h"
 
 using v_t = xf::cmd::value_t;
 using opt_t = xf::cmd::option_t;
 
-void Show(const xf::cmd::Parser::result_t& result)
+void Show(const xf::cmd::result_t& result)
 {
     std::cout << "parse result: code: " << result.code() << ", info: " << result.info() << std::endl;
     for (auto item : result.args())
@@ -50,31 +50,31 @@ bool test_1()
 
     auto result = parser.Parse({ });
     Show(result);
-    bool p1 = (!result.is_valid() && xf::cmd::Parser::state_t::s_nothing == result.code());
+    bool p1 = (!result.is_valid() && xf::cmd::state_t::s_nothing == result.code());
 
     result = parser.Parse({ "--format=json", "--setting=true" });
     Show(result);
-    bool p2 = (!result && xf::cmd::Parser::state_t::s_k_unrecognized == result.code());
+    bool p2 = (!result && xf::cmd::state_t::s_k_unrecognized == result.code());
 
     result = parser.Parse({ "--format=json", "-f=xml" });
     Show(result);
-    bool p3 = (!result && xf::cmd::Parser::state_t::s_k_duplicated == result.code());
+    bool p3 = (!result && xf::cmd::state_t::s_k_duplicated == result.code());
 
     result = parser.Parse({ "-o", "/home/user/workspace/", "--format=json", "--level=L4", "--detail" });
     Show(result);
-    bool p4 = (!result && xf::cmd::Parser::state_t::s_k_missing == result.code());
+    bool p4 = (!result && xf::cmd::state_t::s_k_missing == result.code());
 
     result = parser.Parse({ "-i", "/home/file", "-o", "/home/user/workspace/", "--format=json", "--level=L4", "-x" });
     Show(result);
-    bool p5 = (!result && xf::cmd::Parser::state_t::s_v_missing == result.code());
+    bool p5 = (!result && xf::cmd::state_t::s_v_missing == result.code());
 
     result = parser.Parse({ "-i", "/home/file", "-o", "/home/user/workspace/", "--format=json", "--level=L4", "-d=1" });
     Show(result);
-    bool p6 = (!result && xf::cmd::Parser::state_t::s_v_redundant == result.code());
+    bool p6 = (!result && xf::cmd::state_t::s_v_redundant == result.code());
 
     result = parser.Parse({ "-i", "/home/file", "-o", "/home/user/workspace/", "--format=html", "-x=true", "--level=L4" });
     Show(result);
-    bool p7 = (!result && xf::cmd::Parser::state_t::s_v_error == result.code());
+    bool p7 = (!result && xf::cmd::state_t::s_v_error == result.code());
 
     result = parser.Parse({"-i", "/home/file", "-o=.", "-m=4", "--level", "L2", "-x=true", "-d", "-f", "xml" });
     Show(result);
@@ -100,8 +100,8 @@ bool test_2()
     auto r2 = parser.Parse({ "-y", "10", "-x", "true" });
     Show(r2);
 
-    return (xf::cmd::Parser::state_t::s_k_conflict == r1.code()
-         && xf::cmd::Parser::state_t::s_k_conflict == r2.code()
+    return (xf::cmd::state_t::s_k_conflict == r1.code()
+         && xf::cmd::state_t::s_k_conflict == r2.code()
          && parser.IsSame("-x", "--xx")
          && !parser.IsSame("-x", "-y"));
 }
@@ -115,7 +115,7 @@ bool test_3()
 
     auto result = parser.Parse({ "-x=true", "-z=30" });
     Show(result);
-    bool p1 = (!result && xf::cmd::Parser::state_t::s_v_error == result.code());
+    bool p1 = (!result && xf::cmd::state_t::s_v_error == result.code());
 
     result = parser.Parse({ "-x", "-z=29" });
     Show(result);
@@ -123,15 +123,15 @@ bool test_3()
 
     result = parser.Parse({ "-x", "-y=--zz" });
     Show(result);
-    bool p3 = (!result && xf::cmd::Parser::state_t::s_k_conflict == result.code());
+    bool p3 = (!result && xf::cmd::state_t::s_k_conflict == result.code());
 
     result = parser.Parse({ "-y=--pp" });
     Show(result);
-    bool p4 = (!result && xf::cmd::Parser::state_t::s_v_error == result.code());
+    bool p4 = (!result && xf::cmd::state_t::s_v_error == result.code());
 
     result = parser.Parse({ "-y=" });
     Show(result);
-    bool p5 = (!result && xf::cmd::Parser::state_t::s_k_unrecognized == result.code());
+    bool p5 = (!result && xf::cmd::state_t::s_k_unrecognized == result.code());
 
     result = parser.Parse({ "-y" });
     Show(result);
@@ -139,7 +139,7 @@ bool test_3()
 
     result = parser.Parse({ "-y", "--xx=true" });
     Show(result);
-    bool p7 = (!result && xf::cmd::Parser::state_t::s_v_error == result.code());
+    bool p7 = (!result && xf::cmd::state_t::s_v_error == result.code());
 
     result = parser.Parse({ "-y=--xx" });
     Show(result);
