@@ -4,12 +4,12 @@
 ##### Version: 1.0.0
 
 ### Integration
-将位于`include`目录中的 [cmd_parser.h](include/cmd_parser.h) 头文件拷贝到自己的项目中即可。
+将位于`include`目录中的 [xf_cmd_parser.h](include/xf_cmd_parser.h) 头文件拷贝到自己的项目中即可。
 
 ### Usage
 * 包含头文件:
 ```C++
-#include "cmd_parser.h"
+#include "xf_cmd_parser.h"
 ```
 * 定义解析器对象并添加参数解析规则:
 ```C++
@@ -27,7 +27,7 @@ bool status = result.get<bool>("--status");
 * 对`main`函数的参数进行解析
 ```C++
 #include <iostream>
-#include "cmd_parser.h"
+#include "xf_cmd_parser.h"
 
 int main(int argc, char *argv[])
 {
