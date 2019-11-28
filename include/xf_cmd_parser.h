@@ -69,8 +69,8 @@ namespace xf::cmd
         template<> struct _type_mapper<string_t> { static constexpr value_t _value = value_t::vt_string; };
         template<> struct _type_mapper<nullptr_t> { static constexpr value_t _value = value_t::vt_nothing; };
 
-        static constexpr bool (*_func_list[])(const string_t&){ is_string, is_integer, is_unsigned, is_float, is_boolean, nullptr };
-
+        static constexpr bool (*_func_list[])(const string_t&){ nullptr, is_boolean, is_integer, is_unsigned, is_float, is_string };
+		
     public:
 
         option_t() = default;

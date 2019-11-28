@@ -164,6 +164,7 @@ int main()
     }
 
     std::cout << "total: " << total << " testing, " << ok << " successes, " << (total - ok) << " failures." << std::endl;
+    std::cout << "test result: " << (total == ok ? "success" : "failed") << std::endl;
 
     return 0;
 }
