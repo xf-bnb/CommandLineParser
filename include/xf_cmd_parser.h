@@ -20,7 +20,7 @@ Copyright(c) 2019 Frank Xiong <https://github.com/xf-bnb>.
 
 namespace xf::cmd
 {
-    inline const char* version() { return "1.0.1"; }
+    inline const char* version() { return "1.0.2"; }
 
     using string_t = std::string;
     using size_type = std::size_t;
