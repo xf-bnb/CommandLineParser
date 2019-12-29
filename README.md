@@ -1,7 +1,7 @@
 ## CommandLineParser
 一个基于C++17实现的轻量级命令行参数解析器
 
-##### Version: 1.0.0
+##### Version: 1.0.3
 
 ### Integration
 将位于`include`目录中的 [xf_cmd_parser.h](include/xf_cmd_parser.h) 头文件拷贝到自己的项目中即可。
